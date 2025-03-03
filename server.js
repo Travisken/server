@@ -7,7 +7,7 @@ const app = express();
 const PORT = 5001;
 
 // Set up Dropbox client using an environment variable for the access token
-const dbx = new Dropbox({ accessToken: process.env.DROPBOX_ACCESS_TOKEN });
+const dbx = new Dropbox({ accessToken: 'AFnEn0C0ICsmWdqVlMuprYZO0M7Yx6eV84vuFNQ42ItOBV0IKj096daSN3vuWNtNr60QscHZfPYOc4FatO4H' });
 
 // Multer storage setup
 const storage = multer.memoryStorage(); // Use memory storage for direct upload to Dropbox
