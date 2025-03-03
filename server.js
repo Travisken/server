@@ -1,14 +1,13 @@
 const express = require("express");
 const multer = require("multer");
 const cors = require("cors");
-const fs = require("fs");
 const { Dropbox } = require("dropbox");
 
 const app = express();
 const PORT = 5001;
 
-// Set up Dropbox client
-const dbx = new Dropbox({ accessToken: 'AFnEn0C0ICsmWdqVlMuprYZO0M7Yx6eV84vuFNQ42ItOBV0IKj096daSN3vuWNtNr60QscHZfPYOc4FatO4H' });
+// Set up Dropbox client using an environment variable for the access token
+const dbx = new Dropbox({ accessToken: process.env.DROPBOX_ACCESS_TOKEN });
 
 // Multer storage setup
 const storage = multer.memoryStorage(); // Use memory storage for direct upload to Dropbox
@@ -48,7 +47,10 @@ app.post("/upload", upload.fields([{ name: "bookLink" }, { name: "bookDocument" 
     res.json({ bookLink, bookDocument });
   } catch (error) {
     console.error("Error uploading to Dropbox:", error);
-    res.status(500).json({ error: "Failed to upload files" });
+    res.status(500).json({
+      error: "Failed to upload files",
+      details: error.error_summary || error.message,
+    });
   }
 }); 
 
