@@ -11,28 +11,57 @@ app.use(cors({
   origin: 'https://www.drnimbs.com', // Update to your frontend URL
 }));
 
-// Dropbox client setup
-const dbx = new Dropbox({ accessToken: 'sl.u.AFmxANGH4hsh20ddVhmpIijm-x_X6gHoNh70L9xsr-Z2Dq78H6hH6L6BNIVdJxRZH1PkFblwWuIfwLcgsQ_9BIc2ebrWFOXWFuM5w-MATBki6V0ngBl7oEFKqBFyIQ359sXLXmIEkMF-1XqL20YUm1hCpZ3WZ0RrR_DGZD1e_v8vD3Ui6R_66XVT4Xda7TTT9I7eKNZYT_bc6e7TdWa3PAZBWtSP4zFJQpgOEWoWCKaerGf80GMvEJY7lGXkEN9PI36iMO2ALQVUhyB6hdMyTMbbqTxys_jgGHHoQ-fahl16ZAwu8X-QgvH4v8ijTwdjsvWhNUrOCtONRnHmmIDPi0ulJnDTLaT5fhLrDq4Zs_x_reIzLdWTuI6v79aoxTcc58_hz7viarUQzTvKjX7UmTIkS4L-sFALjqn6cn4NC6hmZfT8qHa4tqxOJ7uRWVFLGl9OKja4aax5x_GyO1q8acvIPtwBi19e3-ZrPFKbwaLdO0RBhI86AO31qLU2Zd8ylz8D0o4ec-gwxsj7moH1kFmWTfa35VbFdcXl0MnnuQ2W2RPRkLdJj3u_0cT3DDQ1-4e6iVPxS8FjB1ZE9sRpni7E5TbJdMt8eWNJSFd5WVuVEHdqn1ZV2b-VYgpQH7j23uECeeHIRagpL5BMOll4ZPiwuVs-G_ph3ClgSBYXeKIXDqP-d88lWePBV8XmZGh7GQi1QssFIL78ByMDbM59YaFeDnN0bZzCsPGhiVsY-A90ZPXUPSB9yp4Io1sGpwad1Ftdh55ZgKfzLKk1ZuaScVBrgdvDs5woas0E3iv1YsO0DRAZQZxb4eqyI60GnjR8aZ4wWGsSpSRaifoHyonRAJhu2e1NQgzoAEt1xFn-_mWdlPbkmJETXO_1ZKNoO18kSLRo85jr5hbtnb9ErQon3NEZrEBJWfTobVDTUOpiWjIT8kMamIgB0nUUrxEZMq5GqCmmKU_ewF3ZuRMzNx1oGMNmTe0zZeMy1JgcygriqRT_bHgkK3XWa91t50yPjh8xehZNkZw0DQplTKyezu4DOavm4iYbXcZLij49nKiiSRU2XAo1nWl-S5j4iNb36Ko4pKASkp8Shs55Hi0A57h9mtihZBVzVClDyCxV_xVmfSX0-rGUscspWGUVJ6j1lEkg52xDo5KeDIPBtzU0kWnUeCw81bwHpv_vjMgVBg5FJo4Bv162oXnUX4MTu2qkI5mzvBE5pNgVcPDhyUseWlQ7kdXvqwU64FBBI_btgnUCOPkyF_vmN-dV70PQgFkAc1OxZ2HkUyqH1V8cDVUKP41A95A6-_32b-Mb1gBM-nV3Qgei4Q' });
+// Dropbox OAuth credentials
+const DROPBOX_CLIENT_ID = "tu2of2p7m1yhiqc";
+const DROPBOX_CLIENT_SECRET = "0mkhxpvhacuri0o";
+const DROPBOX_REFRESH_TOKEN = "YOUR_REFRESH_TOKEN";
+
+// Function to get a fresh access token
+const getAccessToken = async () => {
+  try {
+    const dbx = new Dropbox({ clientId: DROPBOX_CLIENT_ID, clientSecret: DROPBOX_CLIENT_SECRET });
+    const response = await dbx.auth.tokenFromRefreshToken(DROPBOX_REFRESH_TOKEN);
+    return response.result.access_token;
+  } catch (error) {
+    console.error("Error refreshing access token:", error);
+    throw new Error("Failed to refresh Dropbox access token");
+  }
+};
 
 // Multer: Memory storage for file uploads
 const storage = multer.memoryStorage();
 const upload = multer({ storage });
 
-// Helper function to upload a file and get a shareable link
+// Helper function to upload a file and get a permanent shareable link
 const uploadFileToDropbox = async (file) => {
   try {
+    const accessToken = await getAccessToken();
+    const dbx = new Dropbox({ accessToken });
+
     // Upload file to Dropbox
     const uploadResponse = await dbx.filesUpload({
       path: `/${file.originalname}`,
       contents: file.buffer,
     });
 
-    // Generate a temporary downloadable link
-    const linkResponse = await dbx.filesGetTemporaryLink({
-      path: uploadResponse.result.path_display,
-    });
+    // Create a permanent shared link
+    let sharedLinkResponse;
+    try {
+      sharedLinkResponse = await dbx.sharingCreateSharedLinkWithSettings({
+        path: uploadResponse.result.path_display,
+      });
+    } catch (error) {
+      // If a link already exists, retrieve it instead of creating a new one
+      if (error.status === 409) {
+        sharedLinkResponse = await dbx.sharingListSharedLinks({ path: uploadResponse.result.path_display });
+        if (sharedLinkResponse.result.links.length > 0) {
+          return sharedLinkResponse.result.links[0].url.replace("?dl=0", "?raw=1");
+        }
+      }
+      throw error;
+    }
 
-    return linkResponse.result.link;
+    return sharedLinkResponse.result.url.replace("?dl=0", "?raw=1"); // Convert link to direct download
   } catch (error) {
     console.error("Dropbox upload error:", error);
     throw new Error("Failed to upload file to Dropbox");
