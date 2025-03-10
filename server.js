@@ -44,6 +44,8 @@ const uploadFileToDropbox = async (file) => {
       contents: file.buffer,
     });
 
+    console.log("Dropbox upload response:", uploadResponse);
+
     // Create a permanent shared link
     let sharedLinkResponse;
     try {
@@ -51,7 +53,7 @@ const uploadFileToDropbox = async (file) => {
         path: uploadResponse.result.path_display,
       });
     } catch (error) {
-      // If a link already exists, retrieve it instead of creating a new one
+      console.log("Error creating shared link:", error);
       if (error.status === 409) {
         sharedLinkResponse = await dbx.sharingListSharedLinks({ path: uploadResponse.result.path_display });
         if (sharedLinkResponse.result.links.length > 0) {
@@ -61,12 +63,13 @@ const uploadFileToDropbox = async (file) => {
       throw error;
     }
 
-    return sharedLinkResponse.result.url.replace("?dl=0", "?raw=1"); // Convert link to direct download
+    return sharedLinkResponse.result.url.replace("?dl=0", "?raw=1");
   } catch (error) {
     console.error("Dropbox upload error:", error);
     throw new Error("Failed to upload file to Dropbox");
   }
 };
+
 
 // Upload route for cover images and book documents
 app.post("/upload", upload.fields([{ name: "bookLink" }, { name: "bookDocument" }]), async (req, res) => {
