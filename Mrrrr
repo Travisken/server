@@ -7,3 +7,12 @@ echo "https://www.dropbox.com/oauth2/authorize?client_id=%APP_KEY%&response_type
 https://www.dropbox.com/oauth2/authorize?client_id=tu2of2p7m1yhiqc&response_type=code&token_access_type=offline&redirect_uri=http://localhost:5000&state=12345
 
 http://localhost:5000/?code=A6x5765ZmNwAAAAAAAAAKS1COTkln8nwHuAQFgoutio&state=12345
+
+set AUTHORIZATION_CODE=<AUTHORIZATION_CODE>
+set APP_SECRET=<YOUR_APP_SECRET>
+curl -X POST https://api.dropbox.com/oauth2/token ^
+-d code=%AUTHORIZATION_CODE% ^
+-d grant_type=authorization_code ^
+-d client_id=%APP_KEY% ^
+-d client_secret=%APP_SECRET% ^
+-d redirect_uri=%REDIRECT_URI%
