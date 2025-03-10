@@ -1,0 +1,4 @@
+set APP_KEY=<YOUR_APP_KEY>
+set REDIRECT_URI=<YOUR_REDIRECT_URI>
+set STATE=12345
+echo "https://www.dropbox.com/oauth2/authorize?client_id=%APP_KEY%&response_type=code&token_access_type=offline&redirect_uri=%REDIRECT_URI%&state=%STATE%"
