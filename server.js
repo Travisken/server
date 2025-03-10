@@ -14,7 +14,7 @@ app.use(cors({
 // Dropbox OAuth credentials
 const DROPBOX_CLIENT_ID = "tu2of2p7m1yhiqc";
 const DROPBOX_CLIENT_SECRET = "0mkhxpvhacuri0o";
-const DROPBOX_REFRESH_TOKEN = "YOUR_REFRESH_TOKEN";
+const DROPBOX_REFRESH_TOKEN = "ddf81hxCVTEAAAAAAAAAAU3bWaRIkwDHzak4UufwdYttDb3_LzRUPEjsdabVK1bM";
 
 // Function to get a fresh access token
 const getAccessToken = async () => {
