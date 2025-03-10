@@ -38,22 +38,24 @@ const uploadFileToDropbox = async (file) => {
     const accessToken = await getAccessToken();
     const dbx = new Dropbox({ accessToken });
 
-    // Upload file to Dropbox
+    console.log("Uploading file to Dropbox:", file.originalname);
+
+    // Upload file
     const uploadResponse = await dbx.filesUpload({
       path: `/${file.originalname}`,
       contents: file.buffer,
     });
 
-    console.log("Dropbox upload response:", uploadResponse);
+    console.log("Upload response:", uploadResponse);
 
-    // Create a permanent shared link
+    // Generate a shareable link
     let sharedLinkResponse;
     try {
       sharedLinkResponse = await dbx.sharingCreateSharedLinkWithSettings({
         path: uploadResponse.result.path_display,
       });
     } catch (error) {
-      console.log("Error creating shared link:", error);
+      console.error("Error creating shared link:", error);
       if (error.status === 409) {
         sharedLinkResponse = await dbx.sharingListSharedLinks({ path: uploadResponse.result.path_display });
         if (sharedLinkResponse.result.links.length > 0) {
@@ -63,10 +65,12 @@ const uploadFileToDropbox = async (file) => {
       throw error;
     }
 
+    console.log("Generated shared link:", sharedLinkResponse.result.url);
     return sharedLinkResponse.result.url.replace("?dl=0", "?raw=1");
+
   } catch (error) {
     console.error("Dropbox upload error:", error);
-    throw new Error("Failed to upload file to Dropbox");
+    throw new Error("Failed to upload file to Dropbox: " + error.message);
   }
 };
 
