@@ -2,22 +2,19 @@ const express = require("express");
 const multer = require("multer");
 const cors = require("cors");
 const { Dropbox, DropboxAuth } = require("dropbox");
-const fetch = require("node-fetch"); // Ensure fetch is available
+const fetch = require("node-fetch");
 
 const app = express();
 const PORT = 5001;
 
-// Enable CORS for frontend communication
 app.use(cors({
-  origin: 'https://www.drnimbs.com', // Update to your frontend URL
+  origin: ['https://www.drnimbs.com', 'http://localhost:3000'], // Update for local development
 }));
 
-// Dropbox OAuth credentials
 const DROPBOX_CLIENT_ID = "tu2of2p7m1yhiqc";
 const DROPBOX_CLIENT_SECRET = "0mkhxpvhacuri0o";
 const DROPBOX_REFRESH_TOKEN = "ddf81hxCVTEAAAAAAAAAAU3bWaRIkwDHzak4UufwdYttDb3_LzRUPEjsdabVK1bM";
 
-// Function to get a fresh access token
 const getAccessToken = async () => {
   try {
     const auth = new DropboxAuth({
@@ -29,7 +26,7 @@ const getAccessToken = async () => {
     console.log("Refreshing Dropbox access token...");
 
     await auth.refreshAccessToken();
-    const newAccessToken = await auth.getAccessToken(); // Await this call
+    const newAccessToken = await auth.getAccessToken();
 
     if (!newAccessToken) {
       throw new Error("Dropbox access token is undefined or response is malformed.");
@@ -43,11 +40,15 @@ const getAccessToken = async () => {
   }
 };
 
-// Multer: Memory storage for file uploads
 const storage = multer.memoryStorage();
 const upload = multer({ storage });
 
-// Helper function to upload a file and get a permanent shareable link
+const validateFile = (file) => {
+  if (!file) return false;
+  const allowedTypes = ["image/jpeg", "image/png", "image/gif"]; // Add more as needed
+  return allowedTypes.includes(file.mimetype);
+};
+
 const uploadFileToDropbox = async (file) => {
   try {
     const accessToken = await getAccessToken();
@@ -55,7 +56,6 @@ const uploadFileToDropbox = async (file) => {
 
     console.log("Uploading file to Dropbox:", file.originalname);
 
-    // Upload file (overwrite mode)
     const uploadResponse = await dbx.filesUpload({
       path: `/${file.originalname}`,
       contents: file.buffer,
@@ -64,16 +64,14 @@ const uploadFileToDropbox = async (file) => {
 
     console.log("Upload response:", uploadResponse.result);
 
-    // Check if a shared link already exists
     let sharedLinkResponse = await dbx.sharingListSharedLinks({ path: uploadResponse.result.path_display });
 
     if (sharedLinkResponse.result.links.length > 0) {
       const existingLink = sharedLinkResponse.result.links[0].url.replace("?dl=0", "?raw=1");
       console.log("Shared link already exists:", existingLink);
-      return existingLink; // Return existing link immediately
+      return existingLink;
     }
 
-    // Generate a new shareable link if none exists
     sharedLinkResponse = await dbx.sharingCreateSharedLinkWithSettings({
       path: uploadResponse.result.path_display,
     });
@@ -84,14 +82,15 @@ const uploadFileToDropbox = async (file) => {
   } catch (error) {
     console.error("Dropbox upload error:", error);
 
-    // Handle shared link conflict (409 error)
     if (error.status === 409 && error.error?.error_summary.startsWith("shared_link_already_exists")) {
       console.log("Shared link conflict. Fetching existing link...");
       try {
         const existingLinks = await dbx.sharingListSharedLinks({ path: `/${file.originalname}` });
 
         if (existingLinks.result.links.length > 0) {
-          return existingLinks.result.links[0].url.replace("?dl=0", "?raw=1");
+          const existingLink = existingLinks.result.links[0].url.replace("?dl=0", "?raw=1");
+          console.log("Existing shared link found:", existingLink);
+          return existingLink;
         }
       } catch (err) {
         console.error("Error retrieving existing shared link:", err);
@@ -102,19 +101,20 @@ const uploadFileToDropbox = async (file) => {
   }
 };
 
-// Upload route for cover images and book documents
 app.post("/upload", upload.fields([{ name: "bookLink" }, { name: "bookDocument" }]), async (req, res) => {
   try {
     if (!req.files || (!req.files.bookLink && !req.files.bookDocument)) {
       return res.status(400).json({ success: false, message: "No files uploaded" });
     }
 
-    // Upload files to Dropbox
+    if (req.files.bookLink && !validateFile(req.files.bookLink[0])) {
+      return res.status(400).json({ success: false, message: "Invalid file type for bookLink" });
+    }
+
     const uploadPromises = [];
     if (req.files.bookLink) uploadPromises.push(uploadFileToDropbox(req.files.bookLink[0]));
     if (req.files.bookDocument) uploadPromises.push(uploadFileToDropbox(req.files.bookDocument[0]));
 
-    // Wait for all uploads and retrieve URLs
     const uploadedFiles = await Promise.all(uploadPromises);
     const response = {
       success: true,
@@ -124,7 +124,6 @@ app.post("/upload", upload.fields([{ name: "bookLink" }, { name: "bookDocument" 
     if (req.files.bookLink) response.bookLink = uploadedFiles[0];
     if (req.files.bookDocument) response.bookDocument = uploadedFiles[1];
 
-    // Send response with success message
     return res.json(response);
   } catch (error) {
     console.error("Error during upload process:", error);
