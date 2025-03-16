@@ -5,10 +5,11 @@ const { Dropbox, DropboxAuth } = require("dropbox");
 const fetch = require("node-fetch"); // Ensure fetch is available
 
 const app = express();
-const PORT = 5000;
+const PORT = 5001;
 
 // Enable CORS for frontend communication
 app.use(cors({
+  // origin: 'http://localhost:3000', // Update to your frontend URL
   origin: 'https://www.drnimbs.com', // Update to your frontend URL
 }));
 
@@ -68,7 +69,7 @@ const uploadFileToDropbox = async (file) => {
     let sharedLinkResponse = await dbx.sharingListSharedLinks({ path: uploadResponse.result.path_display });
 
     if (sharedLinkResponse.result.links.length > 0) {
-      const existingLink = sharedLinkResponse.result.links[0].url.replace("?dl=0", "&raw=1");
+      const existingLink = sharedLinkResponse.result.links[0].url.replace("&dl=0", "&raw=1");
       console.log("Shared link already exists:", existingLink);
       return existingLink; // Return existing link immediately
     }
@@ -78,7 +79,7 @@ const uploadFileToDropbox = async (file) => {
       path: uploadResponse.result.path_display,
     });
 
-    const newLink = sharedLinkResponse.result.url.replace(/(\?dl=0)?$/, "&raw=1");
+    const newLink = sharedLinkResponse.result.url.replace(/(\&dl=0)?$/, "&raw=1");
     console.log("Generated new shared link:", newLink);
     return newLink;
   } catch (error) {
@@ -91,7 +92,7 @@ const uploadFileToDropbox = async (file) => {
         const existingLinks = await dbx.sharingListSharedLinks({ path: `/${file.originalname}` });
 
         if (existingLinks.result.links.length > 0) {
-          return existingLinks.result.links[0].url.replace("?dl=0", "&raw=1");
+          return existingLinks.result.links[0].url.replace("&dl=0", "&raw=1");
         }
       } catch (err) {
         console.error("Error retrieving existing shared link:", err);
