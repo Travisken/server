@@ -7,11 +7,11 @@ const fetch = require("node-fetch"); // Ensure fetch is available
 const app = express();
 const PORT = 5001;
 
-// Enable CORS for frontend communication
 app.use(cors({
-  // origin: 'http://localhost:3000', // Update to your frontend URL
   origin: 'https://www.drnimbs.com', // Update to your frontend URL
 }));
+
+app.use(express.json()); // Support JSON body parsing
 
 // Dropbox OAuth credentials
 const DROPBOX_CLIENT_ID = "tu2of2p7m1yhiqc";
@@ -85,7 +85,6 @@ const uploadFileToDropbox = async (file) => {
   } catch (error) {
     console.error("Dropbox upload error:", error);
 
-    // Handle shared link conflict (409 error)
     if (error.status === 409 && error.error?.error_summary.startsWith("shared_link_already_exists")) {
       console.log("Shared link conflict. Fetching existing link...");
       try {
@@ -103,12 +102,17 @@ const uploadFileToDropbox = async (file) => {
   }
 };
 
+// Simulated in-memory database for storing books
+const booksDB = {}; // { "bookID": { bookLink: "url", bookDocument: "url", title: "", description: "" } }
+
 // Upload route for cover images and book documents
 app.post("/upload", upload.fields([{ name: "bookLink" }, { name: "bookDocument" }]), async (req, res) => {
   try {
     if (!req.files || (!req.files.bookLink && !req.files.bookDocument)) {
       return res.status(400).json({ success: false, message: "No files uploaded" });
     }
+
+    const bookID = Date.now().toString(); // Generate a unique ID for the book
 
     // Upload files to Dropbox
     const uploadPromises = [];
@@ -120,18 +124,64 @@ app.post("/upload", upload.fields([{ name: "bookLink" }, { name: "bookDocument" 
     const response = {
       success: true,
       message: "Files uploaded successfully!",
+      bookID, // Return generated book ID
     };
 
     if (req.files.bookLink) response.bookLink = uploadedFiles[0];
     if (req.files.bookDocument) response.bookDocument = uploadedFiles[1];
 
-    // Send response with success message
+    // Store book details in memory database
+    booksDB[bookID] = {
+      bookLink: uploadedFiles[0] || null,
+      bookDocument: uploadedFiles[1] || null,
+      title: req.body.title || "",
+      description: req.body.description || "",
+    };
+
     return res.json(response);
   } catch (error) {
     console.error("Error during upload process:", error);
     return res.status(500).json({
       success: false,
       message: "Failed to upload files.",
+      error: error.message,
+    });
+  }
+});
+
+// PATCH route to update a book entry dynamically
+app.patch("/upload/:id", upload.fields([{ name: "bookLink" }, { name: "bookDocument" }]), async (req, res) => {
+  try {
+    const { id } = req.params;
+    if (!booksDB[id]) {
+      return res.status(404).json({ success: false, message: "Book not found" });
+    }
+
+    // Upload new files if provided
+    const uploadPromises = [];
+    if (req.files?.bookLink) uploadPromises.push(uploadFileToDropbox(req.files.bookLink[0]));
+    if (req.files?.bookDocument) uploadPromises.push(uploadFileToDropbox(req.files.bookDocument[0]));
+
+    const uploadedFiles = await Promise.all(uploadPromises);
+
+    // Update book details
+    if (req.files?.bookLink) booksDB[id].bookLink = uploadedFiles[0];
+    if (req.files?.bookDocument) booksDB[id].bookDocument = uploadedFiles[1];
+
+    // Update metadata fields if provided
+    if (req.body.title) booksDB[id].title = req.body.title;
+    if (req.body.description) booksDB[id].description = req.body.description;
+
+    return res.json({
+      success: true,
+      message: "Book updated successfully",
+      updatedBook: booksDB[id],
+    });
+  } catch (error) {
+    console.error("Error updating book:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Failed to update book.",
       error: error.message,
     });
   }
